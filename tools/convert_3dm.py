@@ -59,6 +59,22 @@ def convert(name):
     f = rhino3dm.File3dm.Read(path)
     entries = []  # (bbox_min, bbox_max, nverts, color, [(v, t), ...])
 
+    layers = list(f.Layers)
+    layers_by_id = {str(l.Id): l for l in layers}
+
+    def layer_visible(li):
+        lay = layers[li] if 0 <= li < len(layers) else None
+        while lay is not None:
+            if not lay.Visible:
+                return False
+            lay = layers_by_id.get(str(lay.ParentLayerId))
+        return True
+
+    def is_hidden(attrs):
+        return (attrs.Mode == rhino3dm.ObjectMode.Hidden
+                or not attrs.Visible
+                or not layer_visible(attrs.LayerIndex))
+
     def add(g, attrs, xf=None, bbox_geom=None):
         parts = []
         for m in get_meshes(g):
@@ -76,6 +92,8 @@ def convert(name):
                         sum(len(v) for v, _ in parts), obj_color(f, attrs), parts))
 
     for o in f.Objects:
+        if is_hidden(o.Attributes):
+            continue
         g = o.Geometry
         if isinstance(g, rhino3dm.InstanceReference):
             idef = f.InstanceDefinitions.FindId(g.ParentIdefId)
@@ -84,6 +102,8 @@ def convert(name):
             xf = xform_to_np(g.Xform)
             for oid in idef.GetObjectIds():
                 dobj = f.Objects.FindId(oid)
+                if dobj is not None and not layer_visible(dobj.Attributes.LayerIndex):
+                    continue
                 if dobj is not None:
                     add(dobj.Geometry, dobj.Attributes, xf, bbox_geom=g)
         else:
