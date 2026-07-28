@@ -54,7 +54,9 @@ def mesh_to_arrays(m, xf=None):
     return v, np.array(tris)
 
 def convert(name):
-    f = rhino3dm.File3dm.Read(os.path.join(SRC, name))
+    path = name if os.path.sep in name else os.path.join(SRC, name)
+    name = os.path.basename(path)
+    f = rhino3dm.File3dm.Read(path)
     entries = []  # (bbox_min, bbox_max, nverts, color, [(v, t), ...])
 
     def add(g, attrs, xf=None, bbox_geom=None):
