@@ -1,4 +1,4 @@
-# Dini 3D Viewer
+# Pauger 3D Mast Viewer
 
 Static three.js viewer for the P1–P7 mast models. Open `index.html` via any
 static file server (or GitHub Pages). Orbit = drag, zoom = scroll, pan =
