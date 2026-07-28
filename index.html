@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dini 3D Viewer</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #e8ecf0; }
+  #app { width: 100%; height: 100%; }
+  #bar {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; padding: 8px 10px;
+    background: rgba(30, 35, 40, 0.85); border-radius: 10px;
+    font-family: system-ui, sans-serif;
+  }
+  #bar button {
+    border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer;
+    background: transparent; color: #cfd6dd; font-size: 14px;
+  }
+  #bar button:hover { background: rgba(255,255,255,0.12); }
+  #bar button.active { background: #3b82f6; color: #fff; }
+  #status {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    font-family: system-ui, sans-serif; font-size: 13px; color: #556;
+    background: rgba(255,255,255,0.7); padding: 4px 12px; border-radius: 6px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="status"></div>
+<div id="bar"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+const MODELS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.getElementById('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xe8ecf0);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 10000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.2));
+const dir = new THREE.DirectionalLight(0xffffff, 1.6);
+dir.position.set(1, 2, 1.5);
+scene.add(dir);
+const dir2 = new THREE.DirectionalLight(0xffffff, 0.5);
+dir2.position.set(-1.5, -0.5, -1);
+scene.add(dir2);
+
+const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/libs/draco/');
+const loader = new GLTFLoader().setDRACOLoader(draco);
+
+const status = document.getElementById('status');
+const bar = document.getElementById('bar');
+let current = null;
+const cache = {};
+
+function fit(object) {
+  const box = new THREE.Box3().setFromObject(object);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = size.length() / 2;
+  camera.near = radius / 100;
+  camera.far = radius * 20;
+  const fovV = camera.fov * Math.PI / 180;
+  const fovH = 2 * Math.atan(Math.tan(fovV / 2) * camera.aspect);
+  const dist = 1.1 * radius / Math.sin(Math.min(fovV, fovH) / 2);
+  camera.position.copy(center).add(new THREE.Vector3(0.7, 0.5, 1).normalize().multiplyScalar(dist));
+  camera.updateProjectionMatrix();
+  controls.target.copy(center);
+  controls.update();
+}
+
+async function show(name) {
+  for (const b of bar.children) b.classList.toggle('active', b.textContent === name);
+  if (current) { scene.remove(current); current = null; }
+  if (!cache[name]) {
+    status.style.display = 'block';
+    status.textContent = 'Loading ' + name + '…';
+    try {
+      const gltf = await loader.loadAsync('models/' + name + '.glb');
+      cache[name] = gltf.scene;
+    } catch (e) {
+      status.textContent = 'Failed to load ' + name;
+      console.error(e);
+      return;
+    }
+    status.style.display = 'none';
+  }
+  current = cache[name];
+  scene.add(current);
+  fit(current);
+}
+
+for (const name of MODELS) {
+  const b = document.createElement('button');
+  b.textContent = name;
+  b.onclick = () => show(name);
+  bar.appendChild(b);
+}
+show(MODELS[0]);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+});
+window.__viewer = { camera, controls, scene, show };
+</script>
+</body>
+</html>
